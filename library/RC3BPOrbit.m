@@ -232,9 +232,11 @@ classdef RC3BPOrbit < matlab.mixin.Copyable
             dC = obj.dC;
         end
         
-        function xInertial = inertialMotion(~, t, x)
+        function xInertial = inertialMotion(obj, t, x)
+            % Motion in inertial frame where the bigger primary has been
+            % moved to the origin
             transpose = 0;
-            if((size(x,1) ~= 6) || (size(x,1) ~= 4))
+            if((size(x,2) == 6) || (size(x,2) == 4))
                 transpose =1;
                 x = x';
             end
@@ -243,6 +245,13 @@ classdef RC3BPOrbit < matlab.mixin.Copyable
             theta = t;
             
             for i = 1:numel(theta)
+                % add velocity
+                if(size(x,1) == 4)
+                    x(:,i) = x(:,i) + [obj.System.mu; 0; -x(2,i); x(1,i)];
+                else
+                    x(:,i) = x(:,i) + [obj.System.mu; 0; 0; cross([0;0;1] + x(1:3,i))];
+                end
+                % rotate position/velocity
                 DCM = rotZXZ(theta(i), 0, 0);
                 DCMrv = [DCM zeros(3); zeros(3) DCM];
                 if(size(x,1) == 4) % if problem is planar
@@ -250,6 +259,8 @@ classdef RC3BPOrbit < matlab.mixin.Copyable
                     DCMrv(:,[3 6]) = [];
                 end
                 xInertial(:,i) = DCMrv *x(:,i); % all transposed
+                
+                
             end
             
             if(transpose == 1)
