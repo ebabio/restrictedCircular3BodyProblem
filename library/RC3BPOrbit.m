@@ -80,7 +80,7 @@ classdef RC3BPOrbit < matlab.mixin.Copyable
                 tf = obj.tf;
             end
             
-            obj.odeSol = ode113(@obj.odeRestricted3BP, [0 tf(end)], obj.x0, obj.odeOptions);
+            obj.odeSol = ode113(@obj.odeFunction, [0 tf(end)], obj.x0, obj.odeOptions);
             
             obj.t = obj.odeSol.x;
             obj.x = obj.odeSol.y;
@@ -132,7 +132,7 @@ classdef RC3BPOrbit < matlab.mixin.Copyable
                 phi(:) = obj.odeSol.y(n+1:end,end);
                 
                 if(withTime)
-                    phi(:,end+1) = odeRestricted3BP(obj, [], obj.xf);
+                    phi(:,end+1) = obj.odeFunction([], obj.xf);
                 end
                 
             elseif(method == 1)
@@ -140,7 +140,7 @@ classdef RC3BPOrbit < matlab.mixin.Copyable
                 delta = 1e-8;
                 
                 % Reference solution
-                obj.odeSol = ode113(@obj.odeRestricted3BP, tspan, obj.x0, obj.odeOptions);
+                obj.odeSol = ode113(@obj.odeFunction, tspan, obj.x0, obj.odeOptions);
                 obj.t = obj.odeSol.x;
                 obj.x = obj.odeSol.y(1:n,:);
                 
@@ -155,7 +155,7 @@ classdef RC3BPOrbit < matlab.mixin.Copyable
                 for i=find(activeDimensions==1)
                     perturbation = delta * circshift([1; zeros(n-1,1)], i-1);
                     xDelta0 = obj.x0 + perturbation;
-                    [~,xDeltaf] = ode113(@obj.odeRestricted3BP, [0 obj.tf], xDelta0, obj.odeOptions);
+                    [~,xDeltaf] = ode113(@obj.odeFunction, [0 obj.tf], xDelta0, obj.odeOptions);
                     phi(:,i) = (xDeltaf(end,:)' - obj.xf)/delta;
                 end
                 for i=find(activeDimensions==0)
@@ -163,7 +163,7 @@ classdef RC3BPOrbit < matlab.mixin.Copyable
                 end
                 
                 if(withTime)
-                    phi(:,end+1) = odeRestricted3BP(obj, [], obj.xf);
+                    phi(:,end+1) = obj.odeFunction([], obj.xf);
                 end
                 
                 % Restore ode settings
@@ -185,6 +185,12 @@ classdef RC3BPOrbit < matlab.mixin.Copyable
                 A(:,[3 6]) = [];
                 A([3 6],:) = [];
             end
+        end
+        
+        function xDot = odeFunction(obj, t, x)
+            % This function serves the purpose of giving a clear interface
+            % to be overriden by subclasses
+            xDot = obj.odeRestricted3BP([], x);
         end
         
         function xDot = odeRestricted3BP(obj, ~, x)
@@ -232,24 +238,33 @@ classdef RC3BPOrbit < matlab.mixin.Copyable
             dC = obj.dC;
         end
         
-        function xInertial = inertialMotion(obj, t, x)
-            % Motion in inertial frame where the bigger primary has been
+        function xInertial = inertialMotion(obj, t, x, primary)
+            % Motion in inertial frame where a primary has been
             % moved to the origin
+            % choose primary
+            if(nargin < 4)
+                primary = 0;
+            end
+            % transpose input
             transpose = 0;
             if((size(x,2) == 6) || (size(x,2) == 4))
                 transpose =1;
                 x = x';
             end
-            xInertial = zeros(size(x));
             
+            % setup
+            xInertial = zeros(size(x));
+            primaryPos = [primary-obj.System.mu; 0; 0];
             theta = t;
             
             for i = 1:numel(theta)
                 % add velocity
                 if(size(x,1) == 4)
-                    x(:,i) = x(:,i) + [obj.System.mu; 0; -x(2,i); x(1,i)];
+                    x(1:2,i) = x(1:2,i) - primaryPos(1:2);
+                    x(3:4,i) = x(3:4,i) + [-x(2,i); x(1,i)];                    
                 else
-                    x(:,i) = x(:,i) + [obj.System.mu; 0; 0; cross([0;0;1] + x(1:3,i))];
+                    x(1:3,i) = x(1:3,i) - primaryPos;
+                    x(4:6,i) = x(4:6,i) + [-x(2,i); x(1,i); 0];
                 end
                 % rotate position/velocity
                 DCM = rotZXZ(theta(i), 0, 0);
@@ -287,7 +302,7 @@ classdef RC3BPOrbit < matlab.mixin.Copyable
                 h(3) = plot(obj.x(1,:), obj.x(2,:));
                 
                 if(nargin > 1 && textZVC)
-                    h(4) = obj.System.ZVS(-1.5:0.01:1.5, -1.5:0.01:1., obj.getJacobi(obj.x0), textZVC);
+                    h(4) = obj.System.ZVS(-1.5:0.01:1.5, -1.5:0.01:1.5, obj.getJacobi(obj.x0), textZVC);
                     % default interval: -1.5:0.01:1.5, -1.5:0.01:1.5
                 end
                 
@@ -331,7 +346,7 @@ classdef RC3BPOrbit < matlab.mixin.Copyable
                 error('unrecognized number of inputs')
             end
             
-            xDot = odeRestricted3BP(obj, t, xState);
+            xDot = obj.odeFunction(t, xState);
             phiDot = obj.stateMatrix(xState)*phi;
             yDot = [xDot; phiDot(:)];
         end
