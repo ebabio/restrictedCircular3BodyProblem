@@ -47,7 +47,7 @@ classdef OrbitFamily < matlab.mixin.Copyable
                 attemptCount = 1;
                 obj.continuationParameter(count) = obj.continuationRange(1);
             end
-            orbitGuess = obj.initialConditionGen(orbitGuess, obj.continuationRange(1)+sign(diff(obj.continuationRange))*1e-4);
+            orbitGuess = obj.initialConditionGen(obj.orbit(1), obj.continuationRange(1)+sign(diff(obj.continuationRange))*1e-5);
             [obj.orbit(2), iters] = obj.findNewOrbit(orbitGuess);
             if(iters == -1)
                 error('second orbit is not able to converge')

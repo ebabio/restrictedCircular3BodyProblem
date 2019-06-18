@@ -106,19 +106,22 @@ Z0Range(2) = 0;        % for .2 and without decimation some stable Halo orbit ar
 % Find halo orbit family
 familyHalo = PeriodicOrbitFamily(@haloUpdate, @haloTargeting);
 familyHalo.continuationRange = Z0Range;
-familyHalo.continuationNumber = round(abs(Z0Range(1)-Z0Range(2))/0.001)+1;
+familyHalo.continuationNumber = round(abs(Z0Range(1)-Z0Range(2))/0.003)+1;
 nOfOrbits = familyHalo.findFamily(halo1half)
 familyHalo.decimate(10);
 % STM for the family
-lambda = familyHalo.getStabilityProperties();
+lyapStabilityIndices = familyHalo.getStabilityIndices();
 % Orbit parameters
 [~, x0WithT] = familyHalo.parameterDependence();
 [timeVal, unit] = reasonableTime(x0WithT(end,1)*EarthMoon.t);
 x0WithT(end,:) = (timeVal/x0WithT(end,1)) * x0WithT(end,:);
+for i=1:familyHalo.nOrbits
+    C(i) = familyHalo.orbit(i).getJacobi(  familyHalo.orbit(i).x0 );
+end
 
 % Display results
 display('Halo family converging to the xy-plane eigenvalues')
-disp(lambda)
+disp(lyapStabilityIndices)
 figure(11)
 clf reset
 familyHalo.plot()
@@ -130,3 +133,10 @@ plot(x0WithT(1,:), x0WithT(5,:),'-x')
 title('V_{y_0} as a function of x_0')
 xlabel('x_0 [non-dimensional units]')
 ylabel('V_{y_0} [non-dimensional units]')
+
+figure(13)
+clf reset
+plot(x0WithT(1,:), C ,'-x')
+title('Jacobi Constant as a function of x_0')
+xlabel('x_0 [non-dimensional units]')
+ylabel(['C [non-dimensional units]'])
